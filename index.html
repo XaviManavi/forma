@@ -66,7 +66,8 @@ input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{ou
 .fig{position:relative;height:200px}.fig>svg{position:absolute;inset:0;width:100%;height:100%}
 details summary{cursor:pointer;font-weight:600;padding:8px 0;min-height:44px}
 details ul{margin:6px 0 0;padding-left:18px;color:var(--mut);font-size:15px}
-.add{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:8px}
+.add{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.add>:first-child{grid-column:1/-1}
 .x{border:0;background:none;color:var(--mut);font-size:20px;min-width:44px;min-height:44px;cursor:pointer}
 nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:5}
 nav.tabs div{max-width:480px;margin:0 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
@@ -118,7 +119,7 @@ nav.tabs a[aria-current=page]{color:var(--ink)}
   <ul class="list" id="refeicoes"></ul>
   <form id="fRef">
     <label for="rNome">Add a meal</label>
-    <div class="add"><input id="rNome" placeholder="e.g. chicken and rice" required><input id="rKcal" type="number" inputmode="numeric" placeholder="kcal" required><input id="rProt" type="number" inputmode="numeric" placeholder="prot. g"></div>
+    <div class="add"><input id="rNome" placeholder="e.g. chicken and rice" required><input id="rKcal" type="number" inputmode="numeric" placeholder="kcal" required><input id="rProt" type="number" inputmode="decimal" step="any" min="0" placeholder="prot. g"><input id="rHc" type="number" inputmode="decimal" step="any" min="0" placeholder="carbs g"><input id="rGord" type="number" inputmode="decimal" step="any" min="0" placeholder="fat g"></div>
     <button class="btn" type="submit">Add</button>
   </form>
   <p class="small" id="alimNota" style="margin-top:16px"></p>
@@ -261,7 +262,7 @@ function exemplo(){
   const pesos=[];const base=89.4;for(let i=20;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);if(i%2&&i>2)continue;pesos.push({data:d.toISOString().slice(0,10),kg:+(base-(20-i)*0.09+(Math.sin(i*1.7)*0.35)).toFixed(1)})}
   return {perfil:{nome:'',sexo:'m',idade:22,altura:180,meta:80,objetivo:'perder',nivel:'int',equip:'gym',dias:4,min:60,dieta:'omni',extra:'football',lesoes:['joelho']},
     fontes:['garmin','mfp'],pesos,check:null,feitos:{},
-    refeicoes:[{data:hojeISO(),nome:'Greek yoghurt with oats',kcal:420,prot:32},{data:hojeISO(),nome:'Chicken with rice and vegetables',kcal:680,prot:52}]};
+    refeicoes:[{data:hojeISO(),nome:'Greek yoghurt with oats',kcal:420,prot:32,hc:48,gord:10},{data:hojeISO(),nome:'Chicken with rice and vegetables',kcal:680,prot:52,hc:78,gord:16}]};
 }
 let S;try{S=JSON.parse(localStorage.getItem('forma-v1'))}catch(e){}
 if(!S||!S.perfil)S=exemplo();
@@ -306,13 +307,14 @@ function renderTreino(c){
 }
 function renderAlim(c){
   const hoje=S.refeicoes.filter(r=>r.data===hojeISO());
-  const kc=hoje.reduce((s,r)=>s+r.kcal,0),pr=hoje.reduce((s,r)=>s+(r.prot||0),0);
+  const soma=k=>hoje.reduce((s,r)=>s+(r[k]||0),0);
+  const kc=soma('kcal'),pr=soma('prot'),hc=soma('hc'),gd=soma('gord');
   $('alimSub').textContent=`Target of ${fmt(c.nut.alvo)} kcal · ${({perder:'moderate deficit',ganhar:'slight surplus',resist:'maintenance',saude:'maintenance'})[c.p.objetivo]}`;
   $('alimKcal').textContent=`${fmt(kc)} / ${fmt(c.nut.alvo)}`;
   $('alimBar').style.width=Math.min(100,kc/c.nut.alvo*100)+'%';
-  const mac=[['Protein',pr,c.nut.prot],['Carbs',null,c.nut.hc],['Fat',null,c.nut.gord]];
+  const mac=[['Protein',pr,c.nut.prot],['Carbs',hc,c.nut.hc],['Fat',gd,c.nut.gord]];
   $('macros').innerHTML=mac.map(([n,v,a])=>`<div class="row" style="${n==='Fat'?'border:0':''}"><span>${n}</span><span class="r">${v!==null?fmt(v)+' / ':''}${fmt(a)} g</span></div>${v!==null?`<div class="bar"><b style="width:${Math.min(100,v/a*100)}%"></b></div>`:''}`).join('');
-  $('refeicoes').innerHTML=hoje.length?hoje.map(r=>`<li><span>${esc(r.nome)}<br><span class="small">${fmt(r.prot||0)} g protein</span></span><span class="r">${fmt(r.kcal)} kcal <button class="x" type="button" aria-label="Delete" data-del="${S.refeicoes.indexOf(r)}">×</button></span></li>`).join(''):'<li class="small">No meals logged today yet.</li>';
+  $('refeicoes').innerHTML=hoje.length?hoje.map(r=>`<li><span>${esc(r.nome)}<br><span class="small">P ${fmt(r.prot||0)} g · C ${fmt(r.hc||0)} g · F ${fmt(r.gord||0)} g</span></span><span class="r">${fmt(r.kcal)} kcal <button class="x" type="button" aria-label="Delete" data-del="${S.refeicoes.indexOf(r)}">×</button></span></li>`).join(''):'<li class="small">No meals logged today yet.</li>';
   const dieta={veg:' Vegetarian: eggs, dairy and legumes as your protein base.',vegan:' Vegan: protein +10%, combine legumes with grains.',omni:''}[c.p.dieta];
   $('alimNota').textContent=(c.m.kcal?`MyFitnessPal shows an average of ${fmt(c.m.kcal)} kcal and ${fmt(c.m.proteina)} g of protein per day.`:'Connect MyFitnessPal in Settings to compare with what you usually eat.')+dieta;
 }
@@ -371,7 +373,7 @@ $('fCheck').addEventListener('submit',e=>{e.preventDefault();S.check={data:hojeI
 $('dias').addEventListener('click',e=>{const b=e.target.closest('[data-d]');if(!b)return;diaSel=+b.dataset.d;render()});
 $('treinoDia').addEventListener('change',e=>{const k=e.target.dataset.k;if(!k)return;e.target.checked?S.feitos[k]=1:delete S.feitos[k];render()});
 $('novaSemana').addEventListener('click',()=>{S.feitos={};render()});
-$('fRef').addEventListener('submit',e=>{e.preventDefault();S.refeicoes.push({data:hojeISO(),nome:$('rNome').value.trim(),kcal:+$('rKcal').value,prot:+$('rProt').value||0});e.target.reset();render()});
+$('fRef').addEventListener('submit',e=>{e.preventDefault();S.refeicoes.push({data:hojeISO(),nome:$('rNome').value.trim(),kcal:+$('rKcal').value,prot:+$('rProt').value||0,hc:+$('rHc').value||0,gord:+$('rGord').value||0});e.target.reset();render()});
 $('refeicoes').addEventListener('click',e=>{const b=e.target.closest('[data-del]');if(!b)return;S.refeicoes.splice(+b.dataset.del,1);render()});
 $('fPeso').addEventListener('submit',e=>{e.preventDefault();const kg=+$('nPeso').value;if(!kg)return;S.pesos=S.pesos.filter(x=>x.data!==hojeISO());S.pesos.push({data:hojeISO(),kg});e.target.reset();render()});
 $('pesoHist').addEventListener('click',e=>{const b=e.target.closest('[data-delp]');if(!b)return;S.pesos=S.pesos.filter(x=>x.data!==b.dataset.delp);render()});
